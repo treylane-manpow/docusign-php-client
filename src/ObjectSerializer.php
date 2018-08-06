@@ -79,7 +79,7 @@ class ObjectSerializer
      *
      * @return string the sanitized filename
      */
-    public function sanitizeFilename($filename)
+    public static function sanitizeFilename($filename)
     {
         if (preg_match("/.*[\/\\\\](.*)$/", $filename, $match)) {
             return $match[1];
@@ -251,14 +251,20 @@ class ObjectSerializer
             } else {
                 return null;
             }
-        } elseif (in_array( strtolower($class), ['DateTime', 'bool', 'boolean', 'byte', 'double', 'float', 'int', 'integer', 'mixed', 'number', 'object', 'string', 'void'], true)) {
+        } elseif ($class === 'DateTime' || in_array(strtolower($class), ['bool', 'boolean', 'byte', 'double', 'float', 'int', 'integer', 'mixed', 'object', 'string', 'void'], true)) {
+            if ($class !== 'DateTime') {
+                $class = strtolower($class);
+            }
+            if ($class === 'void') {
+                $class = 'null';
+            }
             settype($data, $class);
             return $data;
         } elseif ($class === '\SplFileObject') {
             // determine file name
             if (array_key_exists('Content-Disposition', $httpHeaders) &&
                 preg_match('/inline; filename=[\'"]?([^\'"\s]+)[\'"]?$/i', $httpHeaders['Content-Disposition'], $match)) {
-                $filename = Configuration::getDefaultConfiguration()->getTempFolderPath() . sanitizeFilename($match[1]);
+                $filename = Configuration::getDefaultConfiguration()->getTempFolderPath() . self::sanitizeFilename($match[1]);
             } else {
                 $filename = tempnam(Configuration::getDefaultConfiguration()->getTempFolderPath(), '');
             }
@@ -271,6 +277,9 @@ class ObjectSerializer
             return $deserialized;
         } else {
             // If a discriminator is defined and points to a valid subclass, use it.
+            if (in_array($class, ['Number', 'Date'])) {
+                $class = '\DocuSign\eSign\Model\\' . $class;
+            }
             $discriminator = $class::DISCRIMINATOR;
             if (!empty($discriminator) && isset($data->{$discriminator}) && is_string($data->{$discriminator})) {
                 $subclass = '\DocuSign\eSign\Model\\' . $data->{$discriminator};
